@@ -1,0 +1,51 @@
+.input-group {
+    --x: 15px;
+    --y: 10px;
+}
+input {
+    padding: var(--y) var(--x);
+    --left: 0;
+    left: var(--left);
+}
+input:is(:focus, :not(:placeholder-shown))
+~ label {
+    top: calc(var(--y) - 27px);
+    font-size: 14px;
+    border-color: black;
+    color: green;
+    
+}
+.input-error {
+    margin-left: var(--x);
+    visibility: hidden;
+}
+input:not(:focus):invalid {
+    border-color: red;
+    animation: error-shake 600ms;
+}
+input:not(:focus):invalid ~ .input-error {
+    visibility: visible;
+}
+input:not(:placeholder-shown):valid {
+    border-color: green;
+}
+@keyframes error-shake {
+    0% {
+        --left: -10px;
+    }
+    20% {
+        --left: 8px;
+    }
+    40% {
+        --left: -6px;
+    }
+    60% {
+        --left: 4px;
+    }
+    80% {
+        --left: -2px;
+    }
+    100% {
+        --left: 0px;
+    }
+}
