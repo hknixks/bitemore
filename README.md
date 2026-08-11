@@ -2,8 +2,9 @@
 
 An online food ordering web app. Users can browse a menu, add items to a cart, check out, and track order history; admins can manage the menu and incoming orders.
 
-**Live app:** https://bitemore-chi.vercel.app
-**API:** https://bitemore-backend.onrender.com/api/v1
+**Live app:** [bitemore-chi.vercel.app](https://bitemore-chi.vercel.app)
+**API:** [bitemore-backend.onrender.com/api/v1](https://bitemore-backend.onrender.com/api/v1)
+**Repo:** [github.com/hknixks/bitemore](https://github.com/hknixks/bitemore)
 
 ## Stack
 
