@@ -49,30 +49,21 @@ const PayMent = () => {
       return ;
     }
 
-    console.log('Payment successful', response);
+    // Only the payment reference and delivery details are sent. The server works out the items,
+    // prices and totals itself and confirms the payment with Paystack before creating the order.
     const postData = {
-      message: response.message,
       reference: response.reference,
-      PaymentStatus: response.status,
-      transaction: response.transaction,
       latitude: deliveryInfo.latitude,
       longitude: deliveryInfo.longitude,
       state: deliveryInfo.state,
-      city: deliveryFee.city,
+      city: deliveryInfo.city,
       address: deliveryInfo.address,
       phoneNo: deliveryInfo.phoneNo,
-      amount: deliveryInfo.amount,
-      deliveryFee: deliveryInfo.deliveryFee,
-      totalFee: deliveryInfo.totalFee,
       deliveryType: deliveryInfo.deliveryType,
-      cart: cart,
-      user: user,
-      status: 'Paid',
     };
     (async () => {
       try {
         const res = await axios.post(baseUrl + `/makingPayment`, postData);
-        console.log(res);
         if (res.status == 200) {
           enqueueSnackbar('Payment successful! Your order is in review.', { variant: 'success' });
           setTimeout(() => {
@@ -80,8 +71,9 @@ const PayMent = () => {
           }, 2000);
         }
       } catch (error) {
-        console.error(error);
-        enqueueSnackbar('Payment failed. Please try again.', { variant: 'error' });
+        // The server explains what went wrong (for example how to reach support with the payment reference).
+        const message = error.response?.data?.message || 'Payment failed. Please try again.';
+        enqueueSnackbar(message, { variant: 'error', autoHideDuration: 12000 });
       }
     })();
   };
@@ -90,7 +82,6 @@ const PayMent = () => {
 
   return (
     <div>
-      <h1>Payment system coming soon</h1>
       <div className="h-fit w-full bg-white rounded shadow pb-2">
         <div className="text w-full p-3 text-[0.9rem] font-medium ">
           Order summary
@@ -115,7 +106,7 @@ const PayMent = () => {
             className="bg-red-600 hover:bg-red-700 w-full text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline"
             publicKey={publicKey}
             email={user.email}
-            amount={deliveryInfo.amount * 100}
+            amount={totalFee() * 100}
             onSuccess={handlePaymentSuccess}
             onClose={handlePaymentClose}
             reference={deliveryInfo.reference}
@@ -124,10 +115,8 @@ const PayMent = () => {
             channels={['card', 'bank_transfer']}
             currencyFormat="NGN"
             disabled={false}
-            customButton={<button>Custom Pay Button</button>}
             embed={true}
             textStyle={{ fontWeight: 'bold' }}
-            beforeInitialize={() => console.log('Initializing payment...')}
             metadata={{
               custom_fields: cart.map(item => ({
                 display_name: "Product Name",

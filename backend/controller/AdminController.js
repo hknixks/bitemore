@@ -1,117 +1,95 @@
-const jwt = require("jsonwebtoken");
+const crypto = require("crypto");
 const bcrypt = require("bcryptjs");
-const dotenv = require("dotenv");
 const adminModel = require("../model/adminModel");
-const { auth } = require("../packages");
+const { signToken, toPublicAccount } = require("../middleware/auth");
+const { asString, cleanText, isEmail } = require("../utils/validate");
 
-dotenv.config();
+const MIN_PASSWORD_LENGTH = 6;
 
-const SECRET = process.env.SECRET;
-const adminSignup = (req, res) => {
-    console.log(req.body);
-    const { firstname, lastname, phonenumber, adminToken, email, password, profile_image } = req.body;
-
-    if (adminToken !== 'ADMIN') {
-        return res.status(500).json({
-            message: "invalid Admin token",
-            status: false,
-        });
-    }
-    adminModel.findOne({ email })
-        .then((user) => {
-            if (user) {
-                return res.status(500).json({
-                    message: "User already exists",
-                    status: false,
-                });
-            }
-            const newUser = new adminModel({
-                firstname,
-                lastname,
-                phonenumber,
-                email,
-                password,
-                adminToken,
-                profile_image
-            });
-            newUser.save()
-                .then((result) => {
-                    console.log(result);
-                    res.status(200).json({
-                        message: "User signed up successfully",
-                        status: true,
-                    });
-                }).catch((error) => {
-                    res.status(500).json({
-                        message: "Oops! Something went wrong.",
-                        status: false,
-                    });
-                });
-        }).catch((error) => {
-            res.status(500).json({
-                message: "Internal server error",
-                status: false,
-            });
-        });
+// Compare secrets without leaking how many leading characters matched.
+const safeEqual = (a, b) => {
+    const digest = (value) => crypto.createHash("sha256").update(value).digest();
+    return crypto.timingSafeEqual(digest(a), digest(b));
 };
 
-const adminLogin = (req, res) => {
-    const { email, password } = req.body;
-
-    adminModel.findOne({ email })
-        .then((user) => {
-            if (!user) {
-                return res.status(404).json({
-                    message: "User not found",
-                    status: false,
-                });
-            }
-            bcrypt.compare(password, user.password)
-                .then((isPasswordValid) => {
-                    if (!isPasswordValid) {
-                        return res.status(401).json({
-                            message: "Incorrect password",
-                            status: false,
-                        });
-                    };
-                    const token = jwt.sign({ email }, SECRET, { expiresIn: "6h" });
-                    res.status(200).json({
-                        message: "Login successful",
-                        status: true,
-                        token: token,
-                        user: user,
-                    });
-                }).catch((error) => {
-                    res.status(500).json({
-                        message: "Internal server error",
-                        status: false,
-                    });
-                });
-        }).catch((error) => {
-            res.status(500).json({
-                message: "Internal server error",
-                status: false,
-            });
-        });
-};
-
-const adminAuthorization = async (req, res) => {
+const adminSignup = async (req, res) => {
     try {
-        const result = await auth(req)
-        const email = result.email;
-        const user = await adminModel.findOne({ email });
+        // Admin accounts can only be created by someone who knows the secret set on the server.
+        const expectedCode = process.env.ADMIN_SIGNUP_CODE;
+        if (!expectedCode) {
+            return res.status(403).json({ message: "Admin signup is disabled", status: false });
+        }
+        if (!safeEqual(asString(req.body.adminToken), expectedCode)) {
+            return res.status(403).json({ message: "invalid Admin token", status: false });
+        }
 
-        res.status(200).json({
-            user: user,
-            status: true,
-        });
-    } catch (err) {
-        res.status(500).json({
-            message: "Oops, something went wrong",
-            status: false,
-        });
+        const firstname = cleanText(req.body.firstname, 60);
+        const lastname = cleanText(req.body.lastname, 60);
+        const phonenumber = cleanText(req.body.phonenumber, 30);
+        const email = cleanText(req.body.email, 254);
+        const password = asString(req.body.password);
+
+        if (!firstname || !lastname || !phonenumber || !isEmail(email)) {
+            return res.status(400).json({ message: "Please fill in all fields with valid details", status: false });
+        }
+        if (password.length < MIN_PASSWORD_LENGTH) {
+            return res.status(400).json({
+                message: `Password must be at least ${MIN_PASSWORD_LENGTH} characters`,
+                status: false,
+            });
+        }
+
+        const existing = await adminModel.findOne({ email });
+        if (existing) {
+            return res.status(409).json({ message: "User already exists", status: false });
+        }
+
+        await new adminModel({ firstname, lastname, phonenumber, email, password }).save();
+
+        return res.status(200).json({ message: "User signed up successfully", status: true });
+    } catch (error) {
+        if (error && error.code === 11000) {
+            return res.status(409).json({ message: "User already exists", status: false });
+        }
+        console.error("admin signup failed:", error.message);
+        return res.status(500).json({ message: "Oops! Something went wrong.", status: false });
     }
 };
 
+const adminLogin = async (req, res) => {
+    try {
+        const email = asString(req.body.email);
+        const password = asString(req.body.password);
+
+        if (!email || !password) {
+            return res.status(400).json({ message: "Email and password are required", status: false });
+        }
+
+        const admin = await adminModel.findOne({ email });
+        if (!admin) {
+            return res.status(404).json({ message: "User not found", status: false });
+        }
+
+        const isPasswordValid = await bcrypt.compare(password, admin.password);
+        if (!isPasswordValid) {
+            return res.status(401).json({ message: "Incorrect password", status: false });
+        }
+
+        return res.status(200).json({
+            message: "Login successful",
+            status: true,
+            token: signToken("admin", admin, "6h"),
+            user: toPublicAccount(admin),
+        });
+    } catch (error) {
+        console.error("admin login failed:", error.message);
+        return res.status(500).json({ message: "Internal server error", status: false });
+    }
+};
+
+// requireAdmin has already verified the token and loaded the account.
+const adminAuthorization = (req, res) => {
+    return res.status(200).json({ user: toPublicAccount(req.admin), status: true });
+};
 
 module.exports = { adminAuthorization, adminSignup, adminLogin };

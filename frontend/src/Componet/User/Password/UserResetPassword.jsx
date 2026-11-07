@@ -1,5 +1,5 @@
 import axios from 'axios';
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom';
 import baseUrl from '../../../BaseUrl';
 import { useSnackbar } from 'notistack';
@@ -14,10 +14,19 @@ const UserResetPassword = () => {
     const location = useLocation();
     const queryParams = new URLSearchParams(location.search);
     const email = queryParams.get('email');
+    // The verified code arrives from the OTP step. Without it the server will refuse the reset.
+    const otp = location.state?.otp;
     const [loader, setLoader] = useState(false)
     const navigate = useNavigate();
 
     const { enqueueSnackbar } = useSnackbar();
+
+    useEffect(() => {
+        if (!otp || !email) {
+            enqueueSnackbar('Please request a new verification code first.', { variant: 'warning' });
+            navigate('/user/forgotpassword', { replace: true });
+        }
+    }, [otp, email, navigate, enqueueSnackbar]);
 
     const formik = useFormik({
         initialValues: {
@@ -35,7 +44,7 @@ const UserResetPassword = () => {
         onSubmit: value => {
             setLoader(true);
             if (value) {
-                axios.post(`${baseUrl}/userForgotPin`, value)
+                axios.post(`${baseUrl}/userForgotPin`, { email: value.email, otp, newPassword: value.newPassword })
                     .then((res) => {
                         const message = res.data.message;
                         if (res.data.status) {
@@ -45,7 +54,7 @@ const UserResetPassword = () => {
                             enqueueSnackbar(message, { variant: 'warning' });
                         }
                     }).catch((err) => {
-                        const message = err.response.data.message
+                        const message = err.response?.data?.message || 'Something went wrong. Please try again.';
                         enqueueSnackbar(message, { variant: 'error' });
                     }).finally(() => {
                         setLoader(false);

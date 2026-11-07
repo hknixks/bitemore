@@ -5,9 +5,11 @@ const paymentSchema = new mongoose.Schema({
         type: String,
         // required: true
     },
+    // Paystack reference. Unique so the same payment can never create two orders.
     reference: {
         type: String,
-        // required: true
+        unique: true,
+        sparse: true,
     },
     PaymentStatus: {
         type: String,

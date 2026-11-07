@@ -1,50 +1,50 @@
 const express = require('express');
 const { signup, login, authorization, updateUserProfile, password } = require('./controller/userController');
-const { apiFuction } = require('./controller/Api');
-const { addToCart, getCartItem, deleteItem, getUserCart, increaseQuantity, decreaseQuantity, makingPayment, getUserHistory } = require('./controller/Cartcontroller');
+const { addToCart, deleteItem, getUserCart, increaseQuantity, decreaseQuantity, makingPayment, getUserHistory } = require('./controller/Cartcontroller');
 const { sendResetEmail, resetPassword, verifyOTP } = require('./controller/ResetPassword');
 const { adminLogin, adminSignup, adminAuthorization } = require('./controller/AdminController');
 const { adminUpload, getNewOrder, acceptOrder, declineOrder, adminGetFood, removeFood, getAllOrderHistory } = require('./controller/AdminCart');
 const { upload } = require('./packages');
+const { requireUser, requireAdmin } = require('./middleware/auth');
+const { authLimiter, otpLimiter } = require('./middleware/rateLimiters');
 
 const router = express.Router();
 
-router.use(express.json());
+// ---- public ----
+router.get('/api', adminGetFood);                       // the menu
 
-// user router
-router.post('/userSignup', signup);
-router.post('/userLogin', login);
-router.get('/userAuthorization', authorization);
-router.post('/userResetpassword', sendResetEmail);
-router.post('/userForgotPin', resetPassword)
-router.post('/userVerifyOTP', verifyOTP);
-router.post('/userForgotPin', sendResetEmail);
-router.post('/userCart', addToCart);
-router.delete('/deleteUserItem/:_id', deleteItem);
-router.put('/cart/increaseQuantity/:itemId', increaseQuantity);
-router.put('/cart/decreaseQuantity/:itemId', decreaseQuantity);
-router.get('/getUserCart/:userId', getUserCart);
-router.post('/makingPayment', makingPayment);
-router.patch('/updateUserProfile/:_id', upload.single('profileImage'), updateUserProfile);
-router.patch('/password/:_id', password);
-router.get('/getUserHistory/:_id', getUserHistory);
-router.get('/getAllUserHistory', getAllOrderHistory)
+router.post('/userSignup', authLimiter, signup);
+router.post('/userLogin', authLimiter, login);
+router.post('/adminLogin', authLimiter, adminLogin);
+router.post('/adminSignup', authLimiter, adminSignup);
 
-router.post('/forgotPin', resetPassword)
+// password reset by emailed code
+router.post('/userResetpassword', otpLimiter, sendResetEmail);
+router.post('/userVerifyOTP', otpLimiter, verifyOTP);
+router.post('/userForgotPin', otpLimiter, resetPassword);
+router.post('/forgotPin', otpLimiter, resetPassword);
 
-router.get('/api', adminGetFood);
-router.delete("/removeFood/:_id", removeFood);
+// ---- logged-in customer ----
+router.get('/userAuthorization', requireUser, authorization);
+router.patch('/updateUserProfile/:_id', requireUser, upload.single('profileImage'), updateUserProfile);
+router.patch('/password/:_id', requireUser, password);
 
+router.post('/userCart', requireUser, addToCart);
+router.get('/getUserCart/:userId', requireUser, getUserCart);
+router.delete('/deleteUserItem/:_id', requireUser, deleteItem);
+router.put('/cart/increaseQuantity/:itemId', requireUser, increaseQuantity);
+router.put('/cart/decreaseQuantity/:itemId', requireUser, decreaseQuantity);
 
+router.post('/makingPayment', requireUser, makingPayment);
+router.get('/getUserHistory/:_id', requireUser, getUserHistory);
 
-
-// admin router
-router.post('/adminLogin', adminLogin);
-router.post('/adminSignup', adminSignup);
-router.get('/adminAuthorization', adminAuthorization);
-router.post('/adminUpload', upload.single('profileImage'), adminUpload);
-router.get('/getNewOrder', getNewOrder);
-router.post('/acceptOffer', acceptOrder);
-router.post('/declineOffer', declineOrder);
+// ---- admin only ----
+router.get('/adminAuthorization', requireAdmin, adminAuthorization);
+router.post('/adminUpload', requireAdmin, upload.single('profileImage'), adminUpload);
+router.delete('/removeFood/:_id', requireAdmin, removeFood);
+router.get('/getNewOrder', requireAdmin, getNewOrder);
+router.get('/getAllUserHistory', requireAdmin, getAllOrderHistory);
+router.post('/acceptOffer', requireAdmin, acceptOrder);
+router.post('/declineOffer', requireAdmin, declineOrder);
 
 module.exports = router;
