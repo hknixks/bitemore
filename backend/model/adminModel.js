@@ -15,14 +15,6 @@ const adminSchema = new mongoose.Schema({
         required: true,
         unique: true
     },
-    adminToken:{
-        type: String,
-        required: true,
-    },
-    otp:{
-        type: Number,
-        required: false,
-    },
     profileImage:{
         type: String,
         required: false,
@@ -38,30 +30,16 @@ const adminSchema = new mongoose.Schema({
 },{timestamps: true});
 
 let saltRound = 10
-adminSchema.pre('save', function(next){
-    // console.log(this.password);
-    bcryptjs.hash(this.password,saltRound )
-    .then(res =>{
-        this.password = res
+// Only hash when the password actually changed, otherwise any later .save() would hash the hash.
+adminSchema.pre('save', async function(next){
+    if (!this.isModified('password')) return next();
+    try {
+        this.password = await bcryptjs.hash(this.password, saltRound);
         next();
-    })
-    .catch(err =>{
-        console.log(err);
-    })
+    } catch (err) {
+        next(err);
+    }
 })
-
-adminSchema.methods.validatepassword = function (password, callback) {
-    bcryptjs.compare(password, this.password, (err, result) => {
-        if (err) {
-            console.log(err);
-            return callback(err);
-        }
-        console.log(result);
-        callback(null, result); 
-    });
-};
-
-
 
 const adminModel = mongoose.model('admin', adminSchema);
 

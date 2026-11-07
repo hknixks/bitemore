@@ -1,24 +1,23 @@
-const express = require('express');
 const mongoose = require('mongoose');
-const app = express();
-const bodyParser = require('body-parser');
-const cors = require('cors');
 const dotenv = require('dotenv')
-const router = require('./routers')
 
 dotenv.config();
 
-app.use(bodyParser.urlencoded({ extended: true, limit: '10mb'  }));
-app.use(bodyParser.json({ limit: '10mb' }));
+// Fail loudly at startup instead of failing on the first login.
+const required = ['SECRET', 'MONGO_URI'];
+const missing = required.filter((name) => !process.env[name]);
+if (missing.length > 0) {
+    console.error(`Missing required environment variables: ${missing.join(', ')}`);
+    process.exit(1);
+}
+['PAYSTACK_SECRET_KEY', 'ADMIN_SIGNUP_CODE'].forEach((name) => {
+    if (!process.env[name]) console.warn(`${name} is not set (payments / admin signup will not work until it is)`);
+});
 
-app.use(cors());
-app.use(express.json());
+const app = require('./app');
 
 const port = process.env.PORT || 3000;
 const URL = process.env.MONGO_URI;
-
-
-app.use('/api/v1', router);
 
 mongoose.connect(URL)
     .then(() => {

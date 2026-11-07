@@ -40,7 +40,7 @@ const UserForgotPassword = () => {
                 }
 
             }).catch((err) => {
-                const message = err.response.data.message;
+                const message = err.response?.data?.message || 'Could not send the code. Please try again.';
                 enqueueSnackbar(message, { variant: 'error' });
             }).finally(() => {
                 setLoader(false)
@@ -117,12 +117,13 @@ export function DialogDefault({ open, handleClose, handleSubmit, email }) {
                 const message = res.data.message
                 enqueueSnackbar(message, { variant: 'success' });
                 if (res.data.status) {
-                    navigate(`/user/resetPassword?email=${email}`)
+                    // The code is carried in router state (not the URL) so the reset step can present it again.
+                    navigate(`/user/resetPassword?email=${encodeURIComponent(email)}`, { state: { otp: otpCodes } })
                 }
 
             }).catch((err) => {
                 console.log(err);
-                const message = err.response.data.message;
+                const message = err.response?.data?.message || 'Could not verify the code. Please try again.';
                 enqueueSnackbar(message, { variant: 'error' });
             })
     };
@@ -184,7 +185,8 @@ export function DialogDefault({ open, handleClose, handleSubmit, email }) {
                     <OTPInput
                         value={otpCodes}
                         onChange={(e) => setOtpCodes(e)}
-                        numInputs={4}
+                        numInputs={6}
+                        inputType="tel"
                         containerStyle="px-2 sm:px-0 text-[32px] "
                         shouldAutoFocus={true}
                         inputStyle="border border-[#00693D] focus:border-yellow-900 rounded sm:rounded-md min-w-[2rem] sm:min-w-[3.3rem] min-h-[2rem] sm:min-h-[3.3rem] mx-auto"
@@ -197,7 +199,7 @@ export function DialogDefault({ open, handleClose, handleSubmit, email }) {
                         className="outline-none mt-2 shadow-2xl bg-red-600 rounded-lg  w-full p-3 transition-all ease-in-out duration-300 text-white hover:border-solid border font-mono font-bold text-lg"
                         type="submit"
                         onClick={handleVerifyOtp}
-                        disabled={otpCodes.length !== 4}
+                        disabled={otpCodes.length !== 6}
                     >
                         Verify Otp
                     </button>
